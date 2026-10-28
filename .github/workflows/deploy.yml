@@ -2,7 +2,8 @@ name: Deploy Teonox Studio to Hostinger
 
 on:
   push:
-    branches: [teonox-studio]
+    branches:
+      - main
 
 jobs:
   deploy:
