@@ -1,0 +1,39 @@
+name: Deploy Teonox Studio to Hostinger
+
+on:
+  push:
+    branches: [teonox-studio]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Deploy dist/ to Hostinger via SSH/rsync
+        env:
+          HOST: ${{ secrets.HOST }}
+          USERNAME: ${{ secrets.USERNAME }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          PORT: ${{ secrets.PORT || 22 }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          eval $(ssh-agent -s)
+          echo "$SSH_KEY" | tr -d '\r' | ssh-add -
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+          rsync -avz -e "ssh -p $PORT -o StrictHostKeyChecking=no" \
+            --delete dist/ "${USERNAME}@${HOST}:${TARGET_DIR}/"

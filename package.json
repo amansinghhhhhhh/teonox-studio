@@ -1,0 +1,21 @@
+{
+  "name": "teonox-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Teonox Studio - static marketing site (premium podcast & creator studio rental). Static HTML/CSS/JS, deployable to any static host.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "clean": "node build.mjs --clean-only",
+    "dev": "node serve.mjs 4173 --source",
+    "serve": "node serve.mjs 4173 --dist",
+    "preview": "node serve.mjs 4173 --dist"
+  },
+  "devDependencies": {
+    "html-minifier-terser": "^7.2.0",
+    "sharp": "^0.33.5"
+  },
+  "optionalDependencies": {
+    "ffmpeg-static": "^5.2.0"
+  }
+}
