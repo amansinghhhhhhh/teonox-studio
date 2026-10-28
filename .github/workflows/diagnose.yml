@@ -1,0 +1,39 @@
+name: Diagnose remote server layout
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+
+      - name: Inspect server
+        env:
+          HOST: ${{ secrets.HOST }}
+          USERNAME: ${{ secrets.USERNAME }}
+          PORT: ${{ secrets.PORT || 22 }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+          SSH_CMD="ssh -p $PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+          echo "=== whoami / home / hostname ==="
+          $SSH_CMD "$USERNAME@$HOST" 'whoami; echo HOME=$HOME; hostname; echo "=== \$HOME listing ==="; ls -la $HOME'
+          echo "=== TARGET_DIR: $TARGET_DIR ==="
+          $SSH_CMD "$USERNAME@$HOST" "ls -la '$TARGET_DIR' 2>&1 | head -30"
+          echo "=== ~/public_html (primary docroot) ==="
+          $SSH_CMD "$USERNAME@$HOST" 'ls -la ~/public_html 2>&1 | head -30'
+          echo "=== ~/domains ==="
+          $SSH_CMD "$USERNAME@$HOST" 'ls -la ~/domains 2>&1; echo "--- per-domain ---"; find ~/domains -maxdepth 3 -name "*.html" 2>/dev/null | head -20'
+          echo "=== readable? ==="
+          $SSH_CMD "$USERNAME@$HOST" "test -r '$TARGET_DIR/index.html' && echo INDEX_READABLE || echo INDEX_NOT_READABLE; stat -c '%A %U %G %n' '$TARGET_DIR/index.html' 2>&1"
+          echo "=== which web root serves this domain ==="
+          $SSH_CMD "$USERNAME@$HOST" 'ls -la ~/domains/*/public_html 2>&1 | head -40'
