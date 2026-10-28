@@ -24,17 +24,21 @@ jobs:
       - name: Build static site
         run: npm run build
 
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          eval $(ssh-agent -s)
+          ssh-add ~/.ssh/id_ed25519
+
       - name: Deploy dist/ to Hostinger via SSH/rsync
         env:
           HOST: ${{ secrets.HOST }}
           USERNAME: ${{ secrets.USERNAME }}
-          SSH_KEY: ${{ secrets.SSH_KEY }}
           PORT: ${{ secrets.PORT || 22 }}
           TARGET_DIR: ${{ secrets.TARGET_DIR }}
         run: |
-          eval $(ssh-agent -s)
-          echo "$SSH_KEY" | tr -d '\r' | ssh-add -
-          mkdir -p ~/.ssh
           ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
-          rsync -avz -e "ssh -p $PORT -o StrictHostKeyChecking=no" \
+          rsync -avz -e "ssh -p $PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no" \
             --delete dist/ "${USERNAME}@${HOST}:${TARGET_DIR}/"
