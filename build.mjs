@@ -482,7 +482,9 @@ AddDefaultCharset UTF-8
 # --- Caching -------------------------------------------------------------
 <IfModule mod_expires.c>
   ExpiresActive On
-  ExpiresByType text/html                "access plus 1 hour"
+  # HTML: zero caching horizon - revalidate on every hit so a new deploy is
+  # visible within seconds instead of waiting out a 1-hour CDN edge TTL.
+  ExpiresByType text/html                "access plus 0 seconds"
   ExpiresByType text/css                 "access plus 1 year"
   ExpiresByType application/javascript   "access plus 1 year"
   ExpiresByType image/webp               "access plus 1 year"
@@ -511,6 +513,13 @@ AddDefaultCharset UTF-8
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
   Header always set Content-Security-Policy "frame-ancestors 'none'; upgrade-insecure-requests"
+  # HTML only: explicit no-cache (belt + braces over mod_expires above) so no
+  # shared cache/CDN edge may reuse a stale copy after a deploy. Images/CSS/JS
+  # keep their 1-year Expires rules above.
+  # NOTE: use [.] not \. -- a backslash is eaten by the JS template literal.
+  <FilesMatch "[.](html|htm)$">
+    Header always set Cache-Control "no-cache, max-age=0, must-revalidate"
+  </FilesMatch>
 </IfModule>
 
 # Block access to dotfiles.
