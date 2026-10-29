@@ -421,9 +421,16 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 # --- Security headers ----------------------------------------------------
+# HSTS without "preload" initially (safest; preload is a one-way door).
+# CSP is intentionally minimal: all CSS/JS is inline, so a full CSP would
+# need hashes/nonces - frame-ancestors + HTTPS upgrade give the easy wins.
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always set Content-Security-Policy "frame-ancestors 'none'; upgrade-insecure-requests"
 </IfModule>
 
 # Block access to dotfiles.
