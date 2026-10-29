@@ -1,0 +1,49 @@
+name: Diagnose domain vhost
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+
+      - name: Compare DNS vs deploy host
+        env:
+          HOST: ${{ secrets.HOST }}
+        run: |
+          HOST_IP=$(getent hosts "$HOST" | awk '{print $1}' | head -1)
+          SITE_IP=$(getent hosts teonoxstudio.com | awk '{print $1}' | head -1)
+          SITE_IP6=$(getent ahosts teonoxstudio.com | awk '{print $1}' | sort -u | tr '\n' ' ')
+          echo "HOST env value resolves to : $HOST_IP"
+          echo "teonoxstudio.com resolves  : $SITE_IP6"
+          if [ "$HOST_IP" = "$SITE_IP" ]; then
+            echo "RESULT: MATCH — same server"
+          else
+            echo "RESULT: MISMATCH — deploy host != domain DNS target"
+          fi
+
+      - name: Test vhost from inside the server
+        env:
+          HOST: ${{ secrets.HOST }}
+          USERNAME: ${{ secrets.USERNAME }}
+          PORT: ${{ secrets.PORT || 22 }}
+        run: |
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+          SSH_CMD="ssh -p $PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+          echo "=== local curl: Host teonoxstudio.com ==="
+          $SSH_CMD "$USERNAME@$HOST" 'curl -sI --max-time 10 -H "Host: teonoxstudio.com" http://127.0.0.1/ | head -8; echo "--- body ---"; curl -s --max-time 10 -H "Host: teonoxstudio.com" http://127.0.0.1/ | head -5'
+          echo "=== local curl: Host temp-domain ==="
+          $SSH_CMD "$USERNAME@$HOST" 'curl -sI --max-time 10 -H "Host: blanchedalmond-flamingo-767844.hostingersite.com" http://127.0.0.1/ | head -8'
+          echo "=== domain dir + logs ==="
+          $SSH_CMD "$USERNAME@$HOST" 'ls -la ~/domains/teonoxstudio.com/; echo "--- logs ---"; find ~/domains/teonoxstudio.com -maxdepth 2 -name "*.log" 2>/dev/null; echo "--- error log tail ---"; tail -15 ~/domains/teonoxstudio.com/logs/error.log 2>/dev/null || echo "no error.log"'
+          echo "=== ssl dir ==="
+          $SSH_CMD "$USERNAME@$HOST" 'ls -la ~/domains/teonoxstudio.com/ssl 2>/dev/null || echo "no ssl dir"; ls -la ~/domains/teonoxstudio.com/public_html/.htaccess'
