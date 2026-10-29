@@ -427,7 +427,10 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 # Block access to dotfiles.
-<FilesMatch "^\.">
+# NOTE: use [.] instead of \. -- a backslash here is eaten by the JS
+# template literal, which would turn the regex into "^." (matches EVERYTHING)
+# and make LiteSpeed return 403 for all files.
+<FilesMatch "^[.]">
   Require all denied
 </FilesMatch>
 `;
