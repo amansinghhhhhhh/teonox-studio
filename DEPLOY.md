@@ -71,12 +71,13 @@ and the unused design-source folders (`Setup Styles/`, `Hero images/`,
 | Step | Detail |
 | --- | --- |
 | Homepage | `home-2.html` → `index.html`, all internal links rewritten |
+| Clean URLs | `/about`, `/gallery`, `/contact`, `/book` — `.htaccess` serves the `.html` file internally and 301-redirects old `.html` URLs |
 | HTML | minified (whitespace, comments, inline CSS + JS) |
 | Gallery photos | 11 PNGs (~28 MB) → WebP (~2 MB) |
 | Logos | PNG → **lossless** WebP (pixel-identical, smaller) |
 | Other photos | JPEG re-encoded with mozjpeg |
 | Hero video | 22 MB 1080p60 → 1.55 MB 1600×900@30 H.264, `faststart` |
-| Extras | `404.html`, `robots.txt`, `.htaccess` (caching + gzip + 404 doc) |
+| Extras | `404.html`, `robots.txt`, `sitemap.xml`, `.htaccess` (caching + gzip + 404 doc + clean URLs + security headers) |
 
 ## Notes
 

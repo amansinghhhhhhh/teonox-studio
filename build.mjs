@@ -185,8 +185,14 @@ function sourceTreeSize() {
 function buildRewrites() {
   const rules = [];
 
-  // The homepage is served as index.html -> repoint every internal link.
-  rules.push(["home-2.html", "index.html"]);
+  // Clean (extensionless) URLs. Physical files stay `.html` on disk and
+  // .htaccess maps /about -> about.html (plus 301s old .html URLs). In the
+  // markup, links, canonical tags and og:url all use the clean form.
+  rules.push(["home-2.html", "/"]);
+  rules.push(["index.html", "/"]);
+  for (const { out } of PAGES) {
+    if (out !== "index.html") rules.push([out, out.replace(/\.html$/, "")]);
+  }
 
   // Gallery photos: PNG -> WebP.
   //  a) plain <img src="images/gallery/X.png">  (gallery.html)
@@ -425,7 +431,11 @@ Sitemap: https://teonoxstudio.com/sitemap.xml
 function buildSitemap() {
   const lastmod = new Date().toISOString().slice(0, 10);
   const entries = PAGES.map((p) => {
-    const loc = p.out === "index.html" ? "https://teonoxstudio.com/" : `https://teonoxstudio.com/${p.out}`;
+    // The sitemap must list the clean URLs exactly as links/canonical do.
+    const loc =
+      p.out === "index.html"
+        ? "https://teonoxstudio.com/"
+        : `https://teonoxstudio.com/${p.out.replace(/\.html$/, "")}`;
     return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </url>`;
   });
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join("\n")}\n</urlset>\n`;
@@ -441,6 +451,33 @@ DirectoryIndex index.html index.htm
 
 # Default charset.
 AddDefaultCharset UTF-8
+
+# --- Clean URLs (/about -> about.html) -------------------------------------
+# 1) Old .html URLs 301-redirect to the clean form so links, canonical tags
+#    and the sitemap all agree. The THE_REQUEST check means only real
+#    browser requests redirect - the internal rewrite below never loops.
+# 2) Extensionless requests are served from the physical <name>.html file.
+#    Requests that already carry a file extension (images, video, robots.txt
+#    ...) and paths that exist on disk are left untouched; anything missing
+#    still falls through to ErrorDocument 404.
+# NOTE: use [.] classes and [[:space:]], never \. or \s - backslashes are
+# eaten by the JS template literal that generates this file (see the
+# dotfiles note below).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{THE_REQUEST} home-2[.]html([[:space:]]|[?]) [NC]
+  RewriteRule ^home-2[.]html$ / [R=301,L]
+  RewriteCond %{THE_REQUEST} index[.]html([[:space:]]|[?]) [NC]
+  RewriteRule ^index[.]html$ / [R=301,L]
+  RewriteCond %{THE_REQUEST} (about|gallery|contact|book)[.]html([[:space:]]|[?]) [NC]
+  RewriteRule ^(about|gallery|contact|book)[.]html$ /$1 [R=301,L]
+  RewriteCond %{THE_REQUEST} (about|gallery|contact|book)/([[:space:]]|[?]) [NC]
+  RewriteRule ^(about|gallery|contact|book)/$ /$1 [R=301,L]
+  RewriteCond %{REQUEST_URI} ![.][a-z0-9]+$ [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.+?)/?$ $1.html [L]
+</IfModule>
 
 # --- Caching -------------------------------------------------------------
 <IfModule mod_expires.c>
@@ -526,9 +563,10 @@ function verify() {
     for (const ref of collectLocalRefs(html)) {
       // url(#gradient) fragments were filtered above; this is a real path.
       const target = path.join(DIST, ref);
-      if (!fs.existsSync(target)) {
-        errors.push(`${rel} -> missing asset "${ref}"`);
-      }
+      if (fs.existsSync(target)) continue;
+      // Clean URL: "/about" is served from about.html by .htaccess.
+      if (!path.extname(ref) && fs.existsSync(target + ".html")) continue;
+      errors.push(`${rel} -> missing asset "${ref}"`);
     }
   }
 
@@ -554,7 +592,9 @@ function verify() {
     const xml = fs.readFileSync(sitemapPath, "utf8");
     for (const m of xml.matchAll(/<loc>https:\/\/teonoxstudio\.com\/([^<]*)<\/loc>/g)) {
       const target = m[1] === "" ? "index.html" : m[1];
-      if (!fs.existsSync(path.join(DIST, target))) {
+      const file = path.join(DIST, target);
+      const ok = fs.existsSync(file) || (!path.extname(target) && fs.existsSync(file + ".html"));
+      if (!ok) {
         errors.push(`sitemap.xml -> missing page "${m[1]}"`);
       }
     }
@@ -608,7 +648,7 @@ async function main() {
 
   // 5. extras
   console.log("  [5/6] writing hosting extras...");
-  writeFile("404.html", NOT_FOUND_HTML);
+  writeFile("404.html", applyRewrites(NOT_FOUND_HTML, rules));
   writeFile("robots.txt", ROBOTS_TXT);
   writeFile("sitemap.xml", buildSitemap());
   writeFile(".htaccess", HTACCESS);

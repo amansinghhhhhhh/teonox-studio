@@ -76,6 +76,23 @@ function handle(req, res) {
     return;
   }
 
+  // --- Clean URLs (mirrors the .htaccess rules that build.mjs writes) ---
+  //   /about.html -> 301 /about ; /about/ -> 301 /about ; /about -> about.html
+  const CLEAN_PAGES = ["/about", "/gallery", "/contact", "/book"];
+  const cleanBase = urlPath.replace(/\.html$/, "").replace(/\/$/, "");
+  if (CLEAN_PAGES.includes(cleanBase)) {
+    if (urlPath !== cleanBase) {
+      res.writeHead(301, { Location: cleanBase }).end();
+      return;
+    }
+    urlPath = cleanBase + ".html";
+  }
+  // Production also redirects these to the root.
+  if (!SOURCE && (urlPath === "/index.html" || urlPath === "/home-2.html")) {
+    res.writeHead(301, { Location: "/" }).end();
+    return;
+  }
+
   if (urlPath === "/" || urlPath.endsWith("/")) {
     urlPath = "/" + INDEX_ALIASES.find((f) => fs.existsSync(path.join(ROOT, f))) || "index.html";
   }
@@ -128,7 +145,7 @@ server.listen(PORT, () => {
   const base = `http://localhost:${PORT}`;
   console.log(`\n  Serving ${MODE === "source" ? "SOURCE files" : "dist/"} at ${base}\n`);
   console.log(`    ${base}/                 -> homepage`);
-  for (const p of ["about.html", "gallery.html", "contact.html", "book.html"]) {
+  for (const p of ["about", "gallery", "contact", "book"]) {
     console.log(`    ${base}/${p}`);
   }
   console.log(`\n  (Ctrl+C to stop)\n`);
