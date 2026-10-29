@@ -72,18 +72,27 @@ const PNG_TO_WEBP = [
 
 /** JPEG re-encode, same file name => no reference changes needed. */
 const RECOMPRESS_JPEG = [
-  "images/hero/hero-bg.jpg",
-  "images/hero/hero-bg-mobile.jpg",
   "images/setup/creator-setup.jpg",
   "images/setup/curtain-setup.jpg",
   "images/setup/premium-setup.jpg",
-  "images/studio/classroom-bg.jpg",
-  "images/studio/creator-classroom.jpg",
-  "images/studio/studio-experience.jpg",
   "images/avatars/harsh-pawale.jpg",
   "images/avatars/prajakta-badhe.jpg",
   "images/avatars/sowmitra-desai.jpg",
   "images/avatars/vishal-bhedurkar.jpg",
+];
+
+/**
+ * Large JPEG -> WebP. These ship as .webp instead of .jpg, so every
+ * reference (preload, poster, <img>, CSS url()) is rewritten in
+ * buildRewrites(). All of them are >150 KB as JPEG; WebP q80 renders
+ * identically at a fraction of the bytes (hero-bg is the LCP image).
+ */
+const JPG_TO_WEBP = [
+  "images/hero/hero-bg.jpg",
+  "images/hero/hero-bg-mobile.jpg",
+  "images/studio/classroom-bg.jpg",
+  "images/studio/creator-classroom.jpg",
+  "images/studio/studio-experience.jpg",
 ];
 
 /** Already small / already optimised — copied byte-for-byte. */
@@ -197,6 +206,12 @@ function buildRewrites() {
   rules.push(["logo-black.png", "logo-black.webp"]);
   rules.push(["logo-white.png", "logo-white.webp"]);
 
+  // Large JPEGs -> WebP: covers <link rel=preload>, poster=, <img src>
+  // and CSS url() in one pass (every reference uses the plain source path).
+  for (const rel of JPG_TO_WEBP) {
+    rules.push([rel, rel.replace(/\.jpe?g$/i, ".webp")]);
+  }
+
   return rules;
 }
 
@@ -226,6 +241,19 @@ async function buildImages() {
       : await sharp(src, { failOn: "none" })
           .webp({ quality: WEBP_QUALITY, effort: 6, alphaQuality: 90 })
           .toBuffer();
+    writeFile(outRel, buf);
+    savedBytes += sourceSize(rel) - buf.length;
+    written.push([rel, outRel, sourceSize(rel), buf.length]);
+  }
+
+  // JPEG -> WebP for the big background/hero photos (see JPG_TO_WEBP).
+  for (const rel of JPG_TO_WEBP) {
+    const src = path.join(SRC, rel);
+    if (!fs.existsSync(src)) throw new Error(`missing source asset: ${rel}`);
+    const outRel = rel.replace(/\.jpe?g$/i, ".webp");
+    const buf = await sharp(src, { failOn: "none" })
+      .webp({ quality: WEBP_QUALITY, effort: 6 })
+      .toBuffer();
     writeFile(outRel, buf);
     savedBytes += sourceSize(rel) - buf.length;
     written.push([rel, outRel, sourceSize(rel), buf.length]);

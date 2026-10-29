@@ -930,8 +930,37 @@
     <div class="photo"></div>
     <video class="hero-video" id="heroVideo" autoplay muted loop playsinline preload="auto"
            poster="images/hero/hero-bg.jpg" aria-hidden="true" tabindex="-1">
-      <source src="Hero%20Video/Teonox-Studio.mp4" type="video/mp4" media="(min-width:821px)" />
+      <source data-src="Hero%20Video/Teonox-Studio.mp4" type="video/mp4" />
     </video>
+    <script>
+    /* Hero video is desktop-only (>=821px). The `media` attribute on <source>
+       is ignored by browsers (only <picture>/<link> support it), so without
+       this gate mobile devices downloaded the full 1.6 MB file. The source is
+       attached lazily via data-src; mobile keeps the poster background. */
+    (function () {
+      var v = document.getElementById("heroVideo");
+      if (!v) return;
+      var s = v.querySelector("source");
+      if (!s) return;
+      var mq = window.matchMedia("(min-width:821px)");
+      function apply() {
+        if (mq.matches) {
+          if (!s.hasAttribute("src")) {
+            s.setAttribute("src", s.getAttribute("data-src"));
+            v.load();
+          }
+          var p = v.play();
+          if (p && p.catch) p.catch(function () {});
+        } else if (s.hasAttribute("src")) {
+          s.removeAttribute("src");
+          v.load();
+        }
+      }
+      apply();
+      if (mq.addEventListener) mq.addEventListener("change", apply);
+      else if (mq.addListener) mq.addListener(apply);
+    })();
+    </script>
     <div class="overlay"></div>
   </div>
   <div class="wrap">
