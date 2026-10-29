@@ -543,8 +543,8 @@
   /* ---------- CONTACT PAGE ---------- */
   .ct-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
   .ct-actions .card{display:flex;flex-direction:column;gap:8px;position:relative;cursor:pointer}
-  .ct-actions .card a{color:var(--primary);font-weight:700;font-size:.95rem;text-decoration:none;word-break:break-word;cursor:pointer}
-  .ct-actions .card a:hover{text-decoration:underline}
+  .ct-actions .card a{color:var(--primary);font-weight:700;font-size:.95rem;text-decoration:none;word-break:break-word;cursor:pointer;z-index:1}
+  .ct-actions .card a:hover{text-decoration:none}
   /* Stretched link: the anchor's overlay covers the whole card, so a click
      anywhere on the card triggers the href (tel / wa.me / mailto / maps).
      The card's own ::after (gradient glow) and :hover lift are unaffected. */
