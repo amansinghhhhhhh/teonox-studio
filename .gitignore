@@ -13,3 +13,22 @@ Thumbs.db
 # Local env
 .env
 .env.local
+
+# Large archives (kept on disk, never committed)
+*.zip
+*.log
+hostinger_deploy_key*
+
+# Raw design material — local reference only, not part of the site
+/Setup Styles/
+/Hero images/
+/Studio Experience/
+/Creator Classroom Space/
+/gear images/
+/font/
+/fonts/
+/images/preload/
+Black Logo.png
+white logo.png
+bg-img.webp
+whatsapp-svgrepo-com.svg
