@@ -17,7 +17,7 @@
  *   2. copy / optimise images (PNG -> WebP, JPEG re-encode)
  *   3. re-encode the hero video (H.264, web-optimised)
  *   4. minify every page, rewrite links, emit index.html at the root
- *   5. emit static-hosting extras (404.html, robots.txt, .htaccess)
+ *   5. emit static-hosting extras (404.html, robots.txt, sitemap.xml, .htaccess)
  *   6. verify the output (every local reference must resolve on disk)
  *
  * Usage:  node build.mjs [--clean-only] [--no-optimise-media]
@@ -386,7 +386,22 @@ const NOT_FOUND_HTML = `<!DOCTYPE html>
 
 const ROBOTS_TXT = `User-agent: *
 Allow: /
+
+Sitemap: https://teonoxstudio.com/sitemap.xml
 `;
+
+/**
+ * sitemap.xml, generated from the PAGES manifest so it can never drift
+ * from what actually ships. `index.html` is listed as the site root.
+ */
+function buildSitemap() {
+  const lastmod = new Date().toISOString().slice(0, 10);
+  const entries = PAGES.map((p) => {
+    const loc = p.out === "index.html" ? "https://teonoxstudio.com/" : `https://teonoxstudio.com/${p.out}`;
+    return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </url>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join("\n")}\n</urlset>\n`;
+}
 
 const HTACCESS = `# Teonox Studio — static hosting config (Apache / LiteSpeed).
 # Hostinger uses LiteSpeed, which reads this file.
@@ -503,6 +518,26 @@ function verify() {
     if (fs.existsSync(path.join(DIST, name))) errors.push(`dist/${name} should not be uploaded`);
   }
 
+  // sitemap.xml must exist and only point at pages that actually ship.
+  const sitemapPath = path.join(DIST, "sitemap.xml");
+  if (!fs.existsSync(sitemapPath)) {
+    errors.push("dist/sitemap.xml is missing");
+  } else {
+    const xml = fs.readFileSync(sitemapPath, "utf8");
+    for (const m of xml.matchAll(/<loc>https:\/\/teonoxstudio\.com\/([^<]*)<\/loc>/g)) {
+      const target = m[1] === "" ? "index.html" : m[1];
+      if (!fs.existsSync(path.join(DIST, target))) {
+        errors.push(`sitemap.xml -> missing page "${m[1]}"`);
+      }
+    }
+  }
+
+  // robots.txt must advertise the sitemap.
+  const robotsPath = path.join(DIST, "robots.txt");
+  if (!fs.existsSync(robotsPath) || !fs.readFileSync(robotsPath, "utf8").includes("Sitemap: https://teonoxstudio.com/sitemap.xml")) {
+    errors.push("dist/robots.txt is missing the Sitemap line");
+  }
+
   return { errors, warnings, htmlFiles };
 }
 
@@ -547,8 +582,9 @@ async function main() {
   console.log("  [5/6] writing hosting extras...");
   writeFile("404.html", NOT_FOUND_HTML);
   writeFile("robots.txt", ROBOTS_TXT);
+  writeFile("sitemap.xml", buildSitemap());
   writeFile(".htaccess", HTACCESS);
-  console.log("        404.html, robots.txt, .htaccess");
+  console.log("        404.html, robots.txt, sitemap.xml, .htaccess");
 
   // 6. verify
   console.log("  [6/6] verifying output...");
