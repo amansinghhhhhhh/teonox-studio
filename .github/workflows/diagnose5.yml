@@ -1,0 +1,58 @@
+name: Probe actual document root
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+
+      - name: Baseline (should be 403 today)
+        run: |
+          echo -n "baseline /__none.txt -> "
+          curl -s -o /dev/null -w "%{http_code}\n" --max-time 15 https://teonoxstudio.com/__none.txt
+
+      - name: Plant probes in candidate docroots
+        env:
+          HOST: ${{ secrets.HOST }}
+          USERNAME: ${{ secrets.USERNAME }}
+          PORT: ${{ secrets.PORT || 22 }}
+        run: |
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+          SSH_CMD="ssh -p $PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+          TARGET="$USERNAME@$HOST"
+          $SSH_CMD "$TARGET" 'set -x
+            mkdir -p ~/public_html
+            echo primary > ~/public_html/__probe_primary.txt
+            echo parent  > ~/domains/teonoxstudio.com/__probe_parent.txt
+            echo docroot > ~/domains/teonoxstudio.com/public_html/__probe_docroot.txt
+            ls -la ~/public_html/ ~/domains/teonoxstudio.com/ | head -20'
+
+      - name: Fetch each probe through the real edge
+        run: |
+          for p in __probe_primary.txt:~/public_html __probe_parent.txt:domains/teonoxstudio.com __probe_docroot.txt:domains/teonoxstudio.com/public_html; do
+            f="${p%%:*}"; where="${p#*:}"
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "https://teonoxstudio.com/$f")
+            echo "$f (in $where) -> $code"
+          done
+          echo "--- sanity: control domain still 200 ---"
+          curl -s -o /dev/null -w "temp domain -> %{http_code}\n" --max-time 15 https://blanchedalmond-flamingo-767844.hostingersite.com/
+
+      - name: Cleanup probes
+        if: always()
+        env:
+          HOST: ${{ secrets.HOST }}
+          USERNAME: ${{ secrets.USERNAME }}
+          PORT: ${{ secrets.PORT || 22 }}
+        run: |
+          SSH_CMD="ssh -p $PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+          $SSH_CMD "$USERNAME@$HOST" 'rm -f ~/public_html/__probe_primary.txt ~/domains/teonoxstudio.com/__probe_parent.txt ~/domains/teonoxstudio.com/public_html/__probe_docroot.txt; rmdir ~/public_html 2>/dev/null || true; echo cleaned'
