@@ -1,0 +1,47 @@
+name: Diagnose edge vs origin
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+
+      - name: DNS + edge tests (from runner, real path)
+        run: |
+          echo "=== NS records ==="
+          dig +short NS teonoxstudio.com || echo "dig unavailable"
+          echo "=== A records ==="
+          dig +short A teonoxstudio.com || true
+          echo "=== edge: https site ==="
+          curl -sI --max-time 15 https://teonoxstudio.com/ | head -4 || echo "curl failed"
+          echo "=== edge: https temp domain (control) ==="
+          curl -sI --max-time 15 https://blanchedalmond-flamingo-767844.hostingersite.com/ | head -4 || echo "curl failed"
+
+      - name: Origin tests with SNI (from server)
+        env:
+          HOST: ${{ secrets.HOST }}
+          USERNAME: ${{ secrets.USERNAME }}
+          PORT: ${{ secrets.PORT || 22 }}
+        run: |
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+          SSH_CMD="ssh -p $PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+          echo "=== origin+SNI: teonoxstudio.com ==="
+          $SSH_CMD "$USERNAME@$HOST" 'curl -skI --max-time 10 --resolve teonoxstudio.com:443:127.0.0.1 https://teonoxstudio.com/ | head -6'
+          echo "=== origin+SNI: temp domain (control) ==="
+          $SSH_CMD "$USERNAME@$HOST" 'curl -skI --max-time 10 --resolve blanchedalmond-flamingo-767844.hostingersite.com:443:127.0.0.1 https://blanchedalmond-flamingo-767844.hostingersite.com/ | head -6'
+          echo "=== which docroot does temp domain use? compare hashes ==="
+          $SSH_CMD "$USERNAME@$HOST" 'md5sum ~/domains/teonoxstudio.com/public_html/index.html ~/domains/blanchedalmond-flamingo-767844.hostingersite.com/public_html/index.html 2>&1'
+          echo "=== temp domain dir listing (dates) ==="
+          $SSH_CMD "$USERNAME@$HOST" 'ls -la ~/domains/blanchedalmond-flamingo-767844.hostingersite.com/public_html | head -12'
+          echo "=== does teonox dir have vhost artifacts (logs/ssl/conf)? ==="
+          $SSH_CMD "$USERNAME@$HOST" 'ls -la ~/domains/teonoxstudio.com/ ~/domains/blanchedalmond-flamingo-767844.hostingersite.com/ 2>&1'
