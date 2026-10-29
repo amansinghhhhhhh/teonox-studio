@@ -485,16 +485,7 @@
     .slot-panel{position:static}
     .stats{grid-template-columns:repeat(2,1fr)}
     .foot-grid{grid-template-columns:1fr 1fr}
-    .bk{padding:20px}
-    .bk-body{grid-template-columns:1fr;gap:22px}
     .bk-step span{display:none}
-    .bk-summary{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:60;border-radius:0;border-left:none;border-right:none;border-bottom:none;padding:13px 18px;box-shadow:0 -16px 40px -24px rgba(0,0,0,.55)}
-    .bk-summary h3,.bk-sum-inner{display:none}
-    .bk-cta{flex-direction:row;align-items:center;justify-content:space-between;margin:0;padding:0;border-top:none;gap:14px}
-    .bk-cta .btn{width:auto;flex:none;padding:12px 22px}
-    .bk-note{display:none}
-    #booking{padding-bottom:130px}
-    body{padding-bottom:70px}
   }
   @media(max-width:640px){
     .section{padding:70px 0}
@@ -623,6 +614,17 @@
   .foot-simple .socials{justify-content:center}
   .foot-bottom{justify-content:center;text-align:center}
   /* ---------- PRELOADER (reference-style: scattered polaroids + center logo) ---------- */
+
+  /* ---------- BOOKING RESPONSIVE (must stay AFTER the "BOOKING PAGE (redesigned)" block) ----------
+     .bk-body / .bk-summary are redefined in the redesign section above, which comes after the
+     main @media block. At equal specificity, later source order wins even inside media queries,
+     so the mobile overrides are re-declared here, last, to actually apply:
+     single column (calendar full width) + summary card in normal flow below it (zero overlap). */
+  @media(max-width:1024px){
+    .bk{padding:20px}
+    .bk-body{grid-template-columns:1fr;gap:22px}
+    .bk-summary{position:static;top:auto}
+  }
   </style>
 </head>
 <body>
